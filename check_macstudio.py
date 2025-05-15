@@ -3,43 +3,50 @@ import smtplib
 import os
 from email.mime.text import MIMEText
 
-# Config
-URL = 'https://www.apple.com/fr/shop/refurbished/mac/mac-studio'
+# URL du rayon Mac Studio reconditionné sur apple.fr
+APPLE_REFURB_URL = 'https://www.apple.com/fr/shop/refurbished/mac/mac-studio'
 
-def check_availability():
-    r = requests.get(URL)
-    return 'Aucun produit ne correspond à votre recherche' not in r.text
+# Texte ou mot-clé à repérer (ajuste si Apple change leur page)
+KEYWORDS = ['Mac Studio', 'Reconditionné']
 
-def send_email():
+def page_contains_mac_studio():
+    response = requests.get(APPLE_REFURB_URL, timeout=10)
+    response.raise_for_status()
+    page_content = response.text
+    return any(keyword.lower() in page_content.lower() for keyword in KEYWORDS)
+
+def send_email(subject, body):
     smtp_user = os.environ['SMTP_USER']
     smtp_pass = os.environ['SMTP_PASS']
-    to_email = os.environ['EMAIL_TO']
+    recipient = os.environ['EMAIL_TO']
 
-    msg = MIMEText(f'Le Mac Studio reconditionné est disponible ici: {URL}')
-    msg['Subject'] = 'ALERTE Mac Studio Reconditionné'
+    msg = MIMEText(body)
+    msg['Subject'] = subject
     msg['From'] = smtp_user
-    msg['To'] = to_email
+    msg['To'] = recipient
 
-    server = smtplib.SMTP('smtp.free.fr', 587)
-    server.starttls()
-    server.login(smtp_user, smtp_pass)
-    server.sendmail(smtp_user, [to_email], msg.as_string())
-    server.quit()
+    with smtplib.SMTP('smtp.free.fr', 587) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_user, [recipient], msg.as_string())
 
-def send_sms():
+def send_sms(body):
     user = os.environ['FREE_MOBILE_USER']
     passwd = os.environ['FREE_MOBILE_PASS']
-    sms_url = f'https://smsapi.free-mobile.fr/sendmsg?user={user}&pass={passwd}&msg=Mac+Studio+reconditionné+disponible'
-    requests.get(sms_url)
-
-def main():
-    if check_availability():
-        send_email()
-        send_sms()
-        print('Alerte envoyée.')
-    else:
-        print('Mac Studio non dispo.')
+    payload = {
+        'user': user,
+        'pass': passwd,
+        'msg': body
+    }
+    requests.post('https://smsapi.free-mobile.fr/sendmsg', data=payload)
 
 if __name__ == '__main__':
-    main()
-
+    try:
+        if page_contains_mac_studio():
+            message = f"🔔 Un Mac Studio reconditionné est dispo : {APPLE_REFURB_URL}"
+            send_email("Mac Studio Reconditionné Disponible", message)
+            send_sms(message)
+        else:
+            print("Rien trouvé.")
+    except Exception as e:
+        print(f"Erreur : {e}")
