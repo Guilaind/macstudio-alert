@@ -1,60 +1,52 @@
 import requests
 import smtplib
+import os
 from email.mime.text import MIMEText
 
-# --- CONFIG --- #
-URL = "https://www.apple.com/fr/shop/refurbished/mac-studio"  # URL à checker
-KEYWORD = "Mac Studio"  # Mot clé à détecter
+# URL du rayon Mac Studio reconditionné sur apple.fr
+APPLE_REFURB_URL = 'https://www.apple.com/fr/shop/refurbished/mac/mac-studio'
 
-# Mail
-SMTP_SERVER = "smtp.free.fr"
-SMTP_PORT = 587
-SMTP_USER = "guilaind@free.fr"
-SMTP_PASS = "La3emePorte"
+# Texte ou mot-clé à repérer (ajuste si Apple change leur page)
+KEYWORDS = ['Mac Studio', 'Reconditionné']
 
-MAIL_FROM = SMTP_USER
-MAIL_TO = "guilaind@free.fr"
+def page_contains_mac_studio():
+    response = requests.get(APPLE_REFURB_URL, timeout=10)
+    response.raise_for_status()
+    page_content = response.text
+    return any(keyword.lower() in page_content.lower() for keyword in KEYWORDS)
 
-# Free Mobile API SMS
-FREE_MOBILE_USER = "13966854"    # numéro client Free Mobile (ou identifiant)
-FREE_MOBILE_API_KEY = "rHqSroj5TjLeNP"
+def send_email(subject, body):
+    smtp_user = os.environ['SMTP_USER']
+    smtp_pass = os.environ['SMTP_PASS']
+    recipient = os.environ['EMAIL_TO']
 
-# --- FONCTIONS --- #
-
-def check_page():
-    response = requests.get(URL)
-    if response.status_code != 200:
-        print("Erreur de connexion à la page")
-        return False
-    return KEYWORD in response.text
-
-def send_mail(subject, body):
     msg = MIMEText(body)
-    msg["From"] = MAIL_FROM
-    msg["To"] = MAIL_TO
-    msg["Subject"] = subject
+    msg['Subject'] = subject
+    msg['From'] = smtp_user
+    msg['To'] = recipient
 
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as smtp:
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(MAIL_FROM, MAIL_TO, msg.as_string())
-    print("Mail envoyé")
+    with smtplib.SMTP('smtp.free.fr', 587) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_user, [recipient], msg.as_string())
 
-def send_sms(message):
-    url = f"https://smsapi.free-mobile.fr/sendmsg?user={FREE_MOBILE_USER}&pass={FREE_MOBILE_API_KEY}&msg={message}"
-    r = requests.get(url)
-    if r.status_code == 200:
-        print("SMS envoyé")
-    else:
-        print(f"Erreur envoi SMS: {r.status_code} {r.text}")
+def send_sms(body):
+    user = os.environ['FREE_MOBILE_USER']
+    passwd = os.environ['FREE_MOBILE_PASS']
+    payload = {
+        'user': user,
+        'pass': passwd,
+        'msg': body
+    }
+    requests.post('https://smsapi.free-mobile.fr/sendmsg', data=payload)
 
-# --- MAIN --- #
-
-if __name__ == "__main__":
-    if check_page():
-        subject = "Mac Studio disponible"
-        body = f"Le Mac Studio est disponible ici : {URL}"
-        send_mail(subject, body)
-        send_sms(body)
-    else:
-        print("Mot clé non trouvé, rien envoyé.")
+if __name__ == '__main__':
+    try:
+        if page_contains_mac_studio():
+            message = f"🔔 Un Mac Studio reconditionné est dispo : {APPLE_REFURB_URL}"
+            send_email("Mac Studio Reconditionné Disponible", message)
+            send_sms(message)
+        else:
+            print("Rien trouvé.")
+    except Exception as e:
+        print(f"Erreur : {e}")
