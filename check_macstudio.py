@@ -43,7 +43,7 @@ def send_sms(body):
 if __name__ == '__main__':
     try:
         if page_contains_mac_studio():
-            message = f"studio"
+            message = f"🔔 Un Mac Studio reconditionné est dispo : {APPLE_REFURB_URL}"
             send_email("Mac Studio Reconditionné Disponible", message)
             send_sms(message)
         else:
