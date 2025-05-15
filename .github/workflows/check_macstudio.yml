@@ -1,0 +1,30 @@
+name: Check Mac Studio Refurb
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # toutes les 15 minutes
+  workflow_dispatch:  # permet de lancer manuellement
+
+jobs:
+  check_macstudio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run check script
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          FREE_MOBILE_USER: ${{ secrets.FREE_MOBILE_USER }}
+          FREE_MOBILE_PASS: ${{ secrets.FREE_MOBILE_PASS }}
+        run: python check_macstudio.py
+
