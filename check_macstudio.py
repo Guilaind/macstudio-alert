@@ -16,7 +16,7 @@ MAIL_FROM = SMTP_USER
 MAIL_TO = "guilaind@free.fr"
 
 # Free Mobile API SMS
-FREE_MOBILE_USER = "+33613592685"    # numéro client Free Mobile (ou identifiant)
+FREE_MOBILE_USER = "13966854"    # numéro client Free Mobile (ou identifiant)
 FREE_MOBILE_API_KEY = "rHqSroj5TjLeNP"
 
 # --- FONCTIONS --- #
