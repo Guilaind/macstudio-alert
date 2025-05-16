@@ -1,52 +1,66 @@
+import os
 import requests
 import smtplib
-import os
 from email.mime.text import MIMEText
 
-# URL du rayon Mac Studio reconditionné sur apple.fr
-APPLE_REFURB_URL = 'https://www.apple.com/fr/shop/refurbished/mac/mac-studio'
-
-# Texte ou mot-clé à repérer (ajuste si Apple change leur page)
-KEYWORDS = ['Mac Studio', 'Reconditionné']
-
-def page_contains_mac_studio():
-    response = requests.get(APPLE_REFURB_URL, timeout=10)
-    response.raise_for_status()
-    page_content = response.text
-    return any(keyword.lower() in page_content.lower() for keyword in KEYWORDS)
+# Config
+EMAIL_TO = os.environ["EMAIL_TO"]
+SMTP_USER = os.environ["SMTP_USER"]
+SMTP_PASS = os.environ["SMTP_PASS"]
+FREE_MOBILE_USER = os.environ["FREE_MOBILE_USER"]
+FREE_MOBILE_PASS = os.environ["FREE_MOBILE_PASS"]
 
 def send_email(subject, body):
-    smtp_user = os.environ['SMTP_USER']
-    smtp_pass = os.environ['SMTP_PASS']
-    recipient = os.environ['EMAIL_TO']
-
     msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = smtp_user
-    msg['To'] = recipient
+    msg["Subject"] = subject
+    msg["From"] = SMTP_USER
+    msg["To"] = EMAIL_TO
 
-    with smtplib.SMTP('smtp.free.fr', 587) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.sendmail(smtp_user, [recipient], msg.as_string())
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(SMTP_USER, SMTP_PASS)
+        server.sendmail(SMTP_USER, EMAIL_TO, msg.as_string())
+        print("📧 Email sent")
 
-def send_sms(body):
-    user = os.environ['FREE_MOBILE_USER']
-    passwd = os.environ['FREE_MOBILE_PASS']
+def send_sms(message):
+    url = f"https://smsapi.free-mobile.fr/sendmsg"
     payload = {
-        'user': user,
-        'pass': passwd,
-        'msg': body
+        "user": FREE_MOBILE_USER,
+        "pass": FREE_MOBILE_PASS,
+        "msg": message
     }
-    requests.post('https://smsapi.free-mobile.fr/sendmsg', data=payload)
+    response = requests.post(url, data=payload)
+    if response.status_code == 200:
+        print("📱 SMS sent")
+    else:
+        print(f"❌ Failed to send SMS: {response.status_code} - {response.text}")
 
-if __name__ == '__main__':
-    try:
-        if page_contains_mac_studio():
-            message = f"🔔 Un Mac Studio reconditionné est dispo : {APPLE_REFURB_URL}"
-            send_email("Mac Studio Reconditionné Disponible", message)
-            send_sms(message)
-        else:
-            print("Rien trouvé.")
-    except Exception as e:
-        print(f"Erreur : {e}")
+def main():
+    url = "https://www.apple.com/fr/shop/refurbished/mac.json"
+    response = requests.get(url)
+    
+    if response.status_code != 200:
+        print(f"❌ Failed to fetch data: {response.status_code}")
+        return
+
+    refurb_data = response.json()
+    if not refurb_data:
+        print("No refurbished products available.")
+        return
+
+    found = False
+    for product in refurb_data:
+        name = product.get("name", "").lower()
+        print(f"🔍 Checking: {name}")
+        if "mac studio" in name:
+            print("✅ Mac Studio refurb found!")
+            url = "https://www.apple.com/fr/shop/refurbished/mac/mac-studio"
+            send_email("Mac Studio Refurb Found!", f"Dispo ici : {url}")
+            send_sms("Mac Studio refurb dispo !")
+            found = True
+            break
+
+    if not found:
+        print("No Mac Studio found.")
+
+if __name__ == "__main__":
+    main()
